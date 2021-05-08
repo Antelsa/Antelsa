@@ -43,7 +43,7 @@ proc startInteraction(pl: Player) {.async.} =
             "protocol": 754
           },
           "players": {
-            "max": conf.getSectionValue("Server", "max_players", "0"),
+            "max": conf.getSectionValue("Server", "max_players", "64").parseInt,
             "online": 0,
             "sample": [
               {
@@ -57,7 +57,7 @@ proc startInteraction(pl: Player) {.async.} =
           },
           "favicon": favicon
         }
-        echo resp
+        #echo resp
         await pl.conn.sendStatusResponse(resp)
       of StatusPing:
         echo "Got ping: ", pkt.ping.val
@@ -131,11 +131,16 @@ proc chook {.noconv.} =
     discard
 
 proc serve() {.async.} =
+  echo "Init server..."
+  
   setControlCHook(chook)
-
+  
+  echo "Bind to port " & $((conf.getSectionValue("Server","port")).parseInt) & "..."
   server.bindAddr(Port((conf.getSectionValue("Server","port")).parseInt))
-
+  echo "Start listen..."
   server.listen()
+
+  echo "Done."
 
   while true:
     let client = await server.accept()

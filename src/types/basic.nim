@@ -82,12 +82,12 @@ proc writeInt*(s: StringStream, val: int32) =
 proc writeLong*(s: StringStream, val: int64) = 
   s.write(cast[uint64](val).toBE())
 
-var strm = newStringStream()
-strm.writeVarInt(27)
-strm.setPosition(0)
+# var strm = newStringStream()
+# strm.writeVarInt(27)
+# strm.setPosition(0)
 
-let len = strm.readVarInt()
-echo "Len: ", len
+# let len = strm.readVarInt()
+# echo "Len: ", len
 
 
 # @[27, 2, 147, 77, 225, 97, 160, 224, 0, 167, 81, 156, 56, 154, 116, 108, 127, 177, 9, 89, 97, 114, 100, 97, 110, 105, 99, 111]
