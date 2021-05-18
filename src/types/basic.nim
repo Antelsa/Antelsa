@@ -1,28 +1,54 @@
 import std/[streams, asyncnet, endians]
 
-template readVarAux(maxVal: untyped): untyped {.dirty.} = 
-  var 
-    shift = 0
+# template readVarAux(maxVal: untyped): untyped {.dirty.} = 
+#   var 
+#     numRead = 0
 
-  var b = s.readInt8()
-  result = result or ((b and 0x7F) shl shift)
-  shift += 7
-  while (b and 0x80) != 0:
-    # Should really almost never happen
-    if unlikely(shift == maxVal * 7):
-      # TODO: Use stew/result ?
-      raise newException(ValueError, "VarInt longer than 5 bytes!")
-    b = s.readInt8()
-    result = result or ((b and 0x7F) shl shift)
-    shift += 7
+#   var b = s.readInt8()
+#   result = result or ((b.uint8 and 0b01111111).int32 shl (numRead * 7))
+#   numRead += 1
+#   while (b.uint8 and 0b10000000) != 0:
+#     # Should really almost never happen
+#     if unlikely(numRead == maxVal):
+#       # TODO: Use stew/result ?
+#       raise newException(ValueError, "VarInt longer than " & $maxVal & " bytes!")
+#     b = s.readInt8()
+#     result = result or ((b.uint8 and 0b01111111).int32 shl (numRead * 7))
+#     numRead += 1
 
 proc readVarInt*(s: StringStream): int32 = 
   ## Reads a VarInt from a stream `s`
-  readVarAux(5)
+  var 
+    numRead = 0
+
+  var b = s.readInt8()
+  result = result or ((b.uint8 and 0b01111111).int32 shl (numRead * 7))
+  numRead += 1
+  while (b.uint8 and 0b10000000) != 0:
+    # Should really almost never happen
+    if unlikely(numRead == 5):
+      # TODO: Use stew/result ?
+      raise newException(ValueError, "VarInt longer than 5 bytes!")
+    b = s.readInt8()
+    result = result or ((b.uint8 and 0b01111111).int32 shl (numRead * 7))
+    numRead += 1
 
 proc readVarLong*(s: StringStream): int64 = 
   ## Reads a VarLong from a stream `s`
-  readVarAux(10)
+  var 
+    numRead = 0
+
+  var b = s.readInt8()
+  result = result or ((b.uint8 and 0b01111111).int64 shl (numRead * 7))
+  numRead += 1
+  while (b.uint8 and 0b10000000) != 0:
+    # Should really almost never happen
+    if unlikely(numRead == 10):
+      # TODO: Use stew/result ?
+      raise newException(ValueError, "VarInt longer than 10 bytes!")
+    b = s.readInt8()
+    result = result or ((b.uint8 and 0b01111111).int64 shl (numRead * 7))
+    numRead += 1
 
 # https://github.com/SolitudeSF/runeterra_decks/blob/master/src/runeterra_decks/codes.nim#L34
 template writeVarAux(T: typedesc): untyped {.dirty.} = 
@@ -33,11 +59,11 @@ template writeVarAux(T: typedesc): untyped {.dirty.} =
     var value = val.T
 
     while value != 0:
-      var byteVal = value and 0x7F
+      var byteVal = value and 0b01111111
       value = value shr 7
 
       if value != 0:
-        byteVal = byteVal or 0x80
+        byteVal = byteVal or 0b10000000
 
       s.write(byteVal.byte)
       inc result
@@ -81,6 +107,9 @@ proc writeInt*(s: StringStream, val: int32) =
 
 proc writeLong*(s: StringStream, val: int64) = 
   s.write(cast[uint64](val).toBE())
+
+proc readLong*(s: StringStream): int64 =
+  result = s.readUint64().fromBE().int64
 
 # var strm = newStringStream()
 # strm.writeVarInt(27)

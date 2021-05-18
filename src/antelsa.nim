@@ -90,8 +90,12 @@ proc startInteraction(pl: Player) {.async.} =
       # Switch state to Play
       pl.state = Play
       #await sleepAsync(15000)
+      echo "Send spawn position..."
       await pl.conn.sendSpawnPosition()
+      echo "Send player position and look..."
       await pl.conn.sendPlayerPositionAndLook()
+      echo "Send join game..."
+      await pl.conn.sendJoinGame()
 
       # Enable clientbound keep-alive
       let kacb = proc (fd: AsyncFd): bool {.closure.} = 
@@ -101,6 +105,7 @@ proc startInteraction(pl: Player) {.async.} =
         result = false # we want to be called again
       
       addTimer(10000, false, kacb)
+      break
     
     of Play:
       let pkt = await readPacket(pl.conn, pl.state)

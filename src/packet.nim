@@ -3,6 +3,8 @@ import types/types
 
 import pkg/uuids
 
+import nimnbt
+
 type
   PacketHandshake* = object
     protVer*: int
@@ -89,11 +91,11 @@ proc readKeepalivePkt*(s: StringStream): PacketKeepalive =
   result.id = s.readVarLong()
 
 proc readPacket*(s: AsyncSocket, state: ConnectionState): Future[Packet] {.async.} = 
-  echo "Reading packet.."
-  let len = await s.readVarint()
+  echo "\u001b[31mReading packet..\u001b[0m"
+  let len = await s.readVarInt()
   echo fmt"Got len {len}, reading data..."
   let stream = newStringStream(await s.recv(len.int))
-  let pktId = int stream.readVarint()
+  let pktId = int stream.readVarInt()
   case state
   of Handshaking:
     echo fmt"Got handshake pktId {pktId}"
@@ -109,7 +111,7 @@ proc readPacket*(s: AsyncSocket, state: ConnectionState): Future[Packet] {.async
     of 0x00:
       result = Packet(kind: StatusRequest)
     of 0x01:
-      let val = stream.readVarLong()
+      let val = stream.readLong()
       echo "Ping val is ", val
       result = Packet(kind: StatusPing, ping: PacketStatusPing(val: val))
     else:
@@ -196,7 +198,7 @@ proc sendStatusPong*(s: AsyncSocket, val: int64) {.async.} =
   # https://wiki.vg/Protocol#Keep_Alive_.28clientbound.29
   echo "Sending status pong..."
   var strm = newStringStream()
-  strm.writeVarLong(int64(val))
+  strm.writeLong(int64(val))
 
   await s.packAndSendPacket(strm, 0x01)
 
@@ -226,10 +228,75 @@ proc sendJoinGame*(s: AsyncSocket) {.async.} =
   strm.write(0'u8) # gamemode - survival
   strm.write(-1'i8) # previous gamemode
   strm.writeVarInt(1) # world count
-  strm.writeString("test") # world name
+  strm.writeString("minecraft:overworld") # world name
   # dimension codec
-  # dimension
-  strm.writeString("test") # world the player is spawned into
+  var dimension_codec = TAG_Compound("", @[
+    TAG_Compound("minecraft:dimension_type", @[
+      TAG_String("type", "minecraft:dimension_type"),
+      TAG_List("value", typ = Compound, val = @[
+        TAG_Compound("", @[
+          TAG_String("name", "minecraft:overworld"),
+          TAG_Int("id", 0),
+          TAG_Compound("element", @[
+            TAG_Byte("piglin_safe", 0),
+            TAG_Byte("natural", 1),
+            TAG_Float("ambient_light", 0.0),
+            TAG_String("infiniburn", "minecraft:infiniburn_overworld"),
+            TAG_Byte("respawn_anchor_works", 1),
+            TAG_Byte("has_skylight", 1),
+            TAG_Byte("bed_works", 1),
+            TAG_String("effects", "minecraft:overworld"),
+            TAG_Byte("has_raids", 0),
+            TAG_Int("logical_height", 256),
+            TAG_Float("coordinate_scale", 1.0),
+            TAG_Byte("ultrawarm", 0),
+            TAG_Byte("has_ceiling", 0)
+          ])
+        ])
+      ])
+    ]),
+    TAG_Compound("minecraft:worldgen/biome", @[
+      TAG_String("type", "minecraft:worldgen/biome"),
+      TAG_List("value", typ = Compound, val = @[
+        TAG_Compound("", @[
+          TAG_String("name", "minecraft:ocean"),
+          TAG_Int("id", 0),
+          TAG_Compound("element", @[
+            TAG_String("precipitation", "rain"),
+            TAG_Float("depth", -1.0),
+            TAG_Float("temperature", 0.5),
+            TAG_Float("scale", 0.1),
+            TAG_Float("downfall", 0.5),
+            TAG_String("category", "ocean"),
+            TAG_Compound("effects", @[
+              TAG_Int("sky_color", 8103167),
+              TAG_Int("water_fog_color", 329011),
+              TAG_Int("fog_color", 12638463),
+              TAG_Int("water_color", 4159204)
+            ])
+          ])
+        ])
+      ])
+    ])
+  ])
+  strm.write(toNbt(dimension_codec, withoutCompress = true))
+  strm.write(toNbt(  # dimension
+    TAG_Compound("", @[
+      TAG_Byte("piglin_safe", 0),
+      TAG_Byte("natural", 1),
+      TAG_Float("ambient_light", 0.0),
+      TAG_String("infiniburn", "minecraft:infiniburn_overworld"),
+      TAG_Byte("respawn_anchor_works", 1),
+      TAG_Byte("has_skylight", 1),
+      TAG_Byte("bed_works", 1),
+      TAG_String("effects", "minecraft:overworld"),
+      TAG_Byte("has_raids", 0),
+      TAG_Int("logical_height", 256),
+      TAG_Float("coordinate_scale", 1.0),
+      TAG_Byte("ultrawarm", 0),
+      TAG_Byte("has_ceiling", 0)
+    ]), withoutCompress = true))
+  strm.writeString("minecraft:overworld") # world the player is spawned into
   strm.writeLong(0) # first 8 bytes of the sha256 of the world seed
   strm.writeVarInt(0) # unused, max players
   strm.writeVarInt(16) # view distance
@@ -237,3 +304,5 @@ proc sendJoinGame*(s: AsyncSocket) {.async.} =
   strm.write(1'u8) # enable respawn screen
   strm.write(0'u8) # is debug world
   strm.write(0'u8) # is flat world
+
+  await s.packAndSendPacket(strm, 0x24) 
