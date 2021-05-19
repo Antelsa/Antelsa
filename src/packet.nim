@@ -279,7 +279,8 @@ proc sendJoinGame*(s: AsyncSocket) {.async.} =
       ])
     ])
   ])
-  strm.write(toNbt(dimension_codec, withoutCompress = true))
+  # strm.write(toNbt(dimension_codec, withoutCompress = true))
+  strm.write(newFileStream("codec.dat").readAll())
   strm.write(toNbt(  # dimension
     TAG_Compound("", @[
       TAG_Byte("piglin_safe", 0),
